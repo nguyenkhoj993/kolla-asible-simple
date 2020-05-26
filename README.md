@@ -1,2 +1,2 @@
 # thefirstrepo
-the firstr epo
+the first repo
