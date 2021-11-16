@@ -1,0 +1,62 @@
+- name: Find elasticsearch version
+  shell: >
+   docker exec -i {{ elasticsearch_services.elasticsearch.container_name }}
+   bash -c "ES_JAVA_OPTS=\"-Xms1g -Xmx1g\"
+   /usr/share/elasticsearch/bin/elasticsearch --version |
+   cut -d\" \" -f2 | tr -d ','"
+  register: elasticsearch_version
+  run_once: true
+
+- set_fact:
+    elasticsearch_version: "{{ elasticsearch_version.stdout }}"
+  connection: local
+
+# Index Lifecyle Management introduced since 6.7
+- name: ILM for deleting all indices
+  block:
+  - name: Create delete policy
+    uri:
+      url: "{{ internal_protocol }}://{{ kolla_internal_vip_address }}:{{ elasticsearch_port }}/_ilm/policy/delete_after_{{ index_retention_time }}_days"
+      method: PUT
+      body_format: json
+      body: |
+        {
+          "policy": {
+            "phases": {
+              "delete": {
+                "min_age": "{{ index_retention_time }}d",
+                "actions": {
+                  "delete": {}
+                }
+              }
+            }
+          }
+        }
+      user: "{{ es_api_basic_auth_username if es_enable_xpack | bool else '' }}"
+      password: "{{ es_api_basic_auth_password if es_enable_xpack | bool else '' }}"
+      force_basic_auth: "{{ 'yes' | bool if es_enable_xpack | bool else 'no' | bool }}"
+    retries: 20
+    delay: 5
+    register: create_policy_result
+    until:
+      - create_policy_result.status == 200
+  
+  - name: Apply policy for all indices
+    uri:
+      url: "{{ internal_protocol }}://{{ kolla_internal_vip_address }}:{{ elasticsearch_port }}/_template/delete_all_indices_after_{{ index_retention_time }}_days"
+      method: PUT
+      body_format: json
+      body: |
+        {
+          "index_patterns": ["flog-*"],
+          "settings": {
+            "index.lifecycle.name": "delete_after_{{ index_retention_time }}_days"
+          } 
+        }
+      user: "{{ es_api_basic_auth_username if es_enable_xpack | bool else '' }}"
+      password: "{{ es_api_basic_auth_password if es_enable_xpack | bool else '' }}"
+      force_basic_auth: "{{ 'yes' | bool if es_enable_xpack | bool else 'no' | bool }}"
+  run_once: true
+  when:
+    - index_retention_time is defined
+      and elasticsearch_version | string is version('6.7.0', '>=')

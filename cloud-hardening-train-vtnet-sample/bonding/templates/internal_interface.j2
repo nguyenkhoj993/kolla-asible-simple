@@ -1,0 +1,10 @@
+DEVICE={{ internal_interface }}
+NAME={{ internal_interface }}
+BOOTPROTO=none
+ONPARENT=yes
+VLAN=yes
+NM_CONTROLLED=no
+IPADDR={{ ansible_facts[internal_interface].ipv4.address }}
+PREFIX=22
+DNS1={{ DNS1 }}
+DNS2={{ DNS2 }}

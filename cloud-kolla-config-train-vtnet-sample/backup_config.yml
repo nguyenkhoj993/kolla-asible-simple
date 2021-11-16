@@ -1,0 +1,57 @@
+---
+- name: Backup Deployment Node
+  hosts: deployment
+  become: True
+  gather_facts: false
+  tags:
+    - deployment
+  vars:
+    kolla_inventory: "/root/inventory/multinode_train"
+    password_yml: "/etc/kolla/passwords.yml"
+    globals_yml: "/etc/kolla/globals.yml"
+    custom_config: "/etc/kolla/config"
+  tasks:
+    - name: fetch globals.yml file
+      fetch:
+        src: "{{ globals_yml }}"
+        dest: "{{ playbook_dir }}"
+        flat: no
+
+    - name: fetch password file
+      fetch:
+        src: "{{ password_yml }}"
+        dest: "{{ playbook_dir }}"
+        flat: no
+
+    # For now, ansible does not support recursive fetching
+    - name: Find all files in kolla custom config directory
+      find:
+        paths: "{{ custom_config }}"
+        recurse: yes
+        file_type: file
+        hidden: yes
+      register: list_file
+
+    - name: fetch kolla custom config directory
+      fetch:
+        src: "{{ item.path }}"
+        dest: "{{ playbook_dir }}"
+        flat: no
+      with_items: "{{ list_file.files }}"
+
+    - name: fetch inventory file
+      fetch:
+        src: "{{ kolla_inventory }}"
+        dest: "{{ playbook_dir }}"
+        flat: no
+
+- name: Backup Grafana and Kibana dashboards
+  hosts: deployment
+  gather_facts: false
+  tags:
+    - dashboards
+  tasks:
+    - name: fetch kibana dashboards
+      script: kibana_script.sh
+    - name: fetch grafana dashboards
+      script: grafana_script.sh

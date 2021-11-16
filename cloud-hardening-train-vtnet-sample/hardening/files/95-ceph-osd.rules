@@ -1,0 +1,12 @@
+# Refer: https://github.com/openstack/charm-ceph-osd/blob/master/files/udev/95-charm-ceph-osd.rules
+# Ensure ceph osd block permission due to race condition between lvm and udev
+ACTION=="add", SUBSYSTEM=="block", \
+  ENV{DEVTYPE}=="disk", \
+  ENV{DM_LV_NAME}=="osd-*", \
+  ENV{DM_VG_NAME}=="ceph-*", \
+  OWNER:="ceph", GROUP:="ceph", MODE:="660"
+ACTION=="add", SUBSYSTEM=="block", \
+  ENV{DEVTYPE}=="disk", \
+  ENV{DM_LV_NAME}=="db-*", \
+  ENV{DM_VG_NAME}=="ceph-*", \
+  OWNER:="ceph", GROUP:="ceph", MODE:="660"

@@ -1,0 +1,271 @@
+---
+- name: Wait for elasticsearch port
+  wait_for:
+    host: "{{ kolla_internal_vip_address }}"
+    port: "{{ elasticsearch_port }}"
+  run_once: true
+
+- name: Check if certs exists
+  shell: >
+    docker exec -u 0 -i {{ elasticsearch_services.elasticsearch.container_name }}
+    ls -1 /etc/elasticsearch
+  register: es_list_conf
+
+#-----------------------------Create Bootstrap User-----------------------------------
+# Since Elastic 6.8, Security features are partially free for [basic] license ( which
+# is default since 6.8). In order for nodes to join cluster, we need to have certificate
+# in each nodes. Plus, `bootstrap.password` is needed to be set before configuring 
+# built-in users such as kibana v.v.
+- name: Create the elasticsearch keystore and certs
+  block:
+  - name: Check if bootstrap password is set
+    shell: >
+     docker exec -u 0 -i {{ elasticsearch_services.elasticsearch.container_name }}
+     /usr/share/elasticsearch/bin/elasticsearch-keystore list
+    register: es_list_keystore
+  
+  - name: Create Bootstrap password for elastic user
+    shell: >
+     docker exec -u 0 -i {{ elasticsearch_services.elasticsearch.container_name }}
+     bash -c "echo {{ es_api_basic_auth_password }} |
+     /usr/share/elasticsearch/bin/elasticsearch-keystore add -x 'bootstrap.password'"
+    register: es_create_bootstrap_password
+    when:
+      - es_api_basic_auth_username is defined
+        and es_list_keystore is defined
+        and es_api_basic_auth_username == 'elastic'
+        and 'bootstrap.password' not in es_list_keystore.stdout_lines
+    notify:
+      - "Restart elasticsearch container"
+
+  - name: Set fact bootstrap hostname
+    set_fact: bootstrap_hostname={{ inventory_hostname }}
+
+  - name: Create certificates to elasticsearch node and set perm
+    shell: >
+     docker exec -u 0 -i {{ elasticsearch_services.elasticsearch.container_name }}
+     bash -c "/usr/share/elasticsearch/bin/elasticsearch-certutil cert
+     -out /etc/elasticsearch/{{ es_cert_fullname }} -pass '' ; chown -R elasticsearch /etc/elasticsearch/"
+    register: es_create_cert
+    when: es_cert_fullname not in es_list_conf.stdout_lines
+    notify:
+      - "Restart elasticsearch container"
+  run_once: true
+  when: inventory_hostname in groups['elasticsearch']
+
+### END BLOCK elasticsearch keystore ###
+
+- name: Force install rsync
+  package:
+    name: "rsync"
+    state: latest
+  become: True
+  when: inventory_hostname in groups['elasticsearch']
+
+# Use rsync since rsync wrapper (synchronize) is broken. It hangs definitely while ssh-ing
+# https://github.com/ansible/ansible/issues/15070
+- name: Copy cert to other hosts
+  # ansible_ssh_* had been deprecated since ansible 2.0
+  # use ansbile_user and ansible_password instead
+  # if you are using ansible prior to 2.0, you should use the formers.
+  # https://docs.ansible.com/ansible/2.3/intro_inventory.html#list-of-behavioral-inventory-parameters
+  shell: >
+   /usr/bin/rsync --delay-updates -F --compress --archive
+   --rsh="/usr/bin/sshpass -p {{ hostvars[inventory_hostname].ansible_password }} ssh -S none
+   -o Port={{ansible_port}} -o StrictHostKeyChecking=no
+   -o UserKnownHostsFile=/dev/null"
+   --rsync-path="rsync" {{ elasticsearch_conf_mount_dir }}/{{ es_cert_fullname }}
+   {{ hostvars[inventory_hostname]['ansible_user'] }}@{{ inventory_hostname }}:/tmp/{{ es_cert_fullname }}
+  delegate_to: "{{ bootstrap_hostname }}"
+  become: true
+  when:
+    - bootstrap_hostname is defined
+      and inventory_hostname != bootstrap_hostname
+      and es_cert_fullname not in es_list_conf.stdout_lines
+      and inventory_hostname in groups['elasticsearch']
+
+# Non-root user cannot copy directly into docker volume.
+# Use /tmp as remote temporary directory.
+- name: Copy cert into container
+  command: >
+   cp /tmp/{{ es_cert_fullname }} {{ elasticsearch_conf_mount_dir }}/{{ es_cert_fullname }}
+  become: true
+  when:
+    - bootstrap_hostname is defined
+      and inventory_hostname != bootstrap_hostname
+      and es_cert_fullname not in es_list_conf.stdout_lines
+      and inventory_hostname in groups['elasticsearch']
+
+- name: Reset permissions for /etc/elasticsearch
+  shell: >
+    docker exec -u 0 -i {{ elasticsearch_services.elasticsearch.container_name }}
+    bash -c "chown -R elasticsearch /etc/elasticsearch/"
+  when: inventory_hostname in groups['elasticsearch']
+
+### CREATE/UPDATE password for native users
+
+- name: Set fact native_users
+  set_fact: native_users={{ es_users.native }}
+  when:
+    - es_users is defined and es_users.native is defined and es_users.native.keys() | list | length > 0
+  run_once: true
+
+- name: Wait for elasticsearch port
+  wait_for:
+    host: "{{ kolla_internal_vip_address }}"
+    port: "{{ elasticsearch_port }}"
+  run_once: true
+
+# Update password on all reserved users
+- name: Update reserved user passwords
+  uri:
+    url: "{{ internal_protocol }}://{{ bootstrap_hostname }}:{{ elasticsearch_port }}/_security/user/{{item}}/_password"
+    method: POST
+    body_format: json
+    body: "{ \"password\":\"{{native_users[item].password}}\" }"
+    status_code: "200"
+    user: "{{ es_api_basic_auth_username }}"
+    password: "{{ es_api_basic_auth_password }}"
+    force_basic_auth: yes
+  when: 
+    - native_users[item].password is defined
+  with_items: "{{ native_users }}"
+  retries: 20
+  delay: 5
+  register: result
+  run_once: true
+  until:
+    - result.status == 200
+    
+# Set cluster previledge to [monitor] which provides read-only operations since client needs to successfully connect to cluster
+# Set [*] indices priviledge to [create, create_index] for writing index documents and indices
+- name: Create fluentd role
+  uri:
+    url: "{{ internal_protocol }}://{{ kolla_internal_vip_address }}:{{ elasticsearch_port }}/_security/role/{{es_fluentd_username}}_role"
+    method: POST
+    body_format: json
+    body: |
+       {
+         "cluster": [
+           "all" 
+         ],
+         "indices": [
+           {
+             "names": ["*"],
+             "privileges": ["all"]
+           }
+         ]
+       }
+    user: "{{ es_api_basic_auth_username }}"
+    password: "{{ es_api_basic_auth_password }}"
+    force_basic_auth: yes
+  run_once: true
+  when:
+    - es_fluentd_username is defined and es_fluentd_password is defined
+
+- name: Create fluentd user
+  uri:
+    url: "{{ internal_protocol }}://{{ kolla_internal_vip_address }}:{{ elasticsearch_port }}/_security/user/{{es_fluentd_username}}"
+    method: POST
+    body_format: json
+    body: |
+       {
+         "password": "{{es_fluentd_password}}",
+         "roles": [ "{{es_fluentd_username}}_role" ],
+         "full_name" : "Fluentd User"
+         }
+       }
+    user: "{{ es_api_basic_auth_username }}"
+    password: "{{ es_api_basic_auth_password }}"
+    force_basic_auth: yes
+  run_once: true
+  when:
+    - es_fluentd_username is defined and es_fluentd_password is defined
+
+# Set cluster previledge to [monitor] which provides read-only operations since client needs to successfully connect to cluster
+# Set [*] indices priviledge to [delete, delete_index] for delete index documents and indices
+- name: Create curator role
+  uri:
+    url: "{{ internal_protocol }}://{{ kolla_internal_vip_address }}:{{ elasticsearch_port }}/_security/role/{{es_curator_username}}_role"
+    method: POST
+    body_format: json
+    body: |
+       {
+         "cluster": [
+           "monitor" 
+         ],
+         "indices": [
+           {
+             "names": ["*"],
+             "privileges": ["delete", "delete_index", "monitor"]
+           }
+         ]
+       }
+    user: "{{ es_api_basic_auth_username }}"
+    password: "{{ es_api_basic_auth_password }}"
+    force_basic_auth: yes
+  run_once: true
+  when:
+    - es_curator_username is defined and es_curator_password is defined
+
+- name: Create curator user
+  uri:
+    url: "{{ internal_protocol }}://{{ kolla_internal_vip_address }}:{{ elasticsearch_port }}/_security/user/{{es_curator_username}}"
+    method: POST
+    body_format: json
+    body: |
+       {
+         "password": "{{es_curator_password}}",
+         "roles": [ "{{es_curator_username}}_role" ],
+         "full_name" : "Curator User"
+         }
+       }
+    user: "{{ es_api_basic_auth_username }}"
+    password: "{{ es_api_basic_auth_password }}"
+    force_basic_auth: yes
+  run_once: true
+  when:
+    - es_curator_username is defined and es_curator_password is defined
+
+- name: Create es exporter role
+  uri:
+    url: "{{ internal_protocol }}://{{ kolla_internal_vip_address }}:{{ elasticsearch_port }}/_security/role/{{es_exporter_username}}_role"
+    method: POST
+    body_format: json
+    body: |
+       {
+         "cluster": [
+           "monitor" 
+         ],
+         "indices": [
+           {
+             "names": ["*"],
+             "privileges": ["monitor"]
+           }
+         ]
+       }
+    user: "{{ es_api_basic_auth_username }}"
+    password: "{{ es_api_basic_auth_password }}"
+    force_basic_auth: yes
+  run_once: true
+  when:
+    - es_exporter_username is defined and es_exporter_password is defined
+
+- name: Create es exporter user
+  uri:
+    url: "{{ internal_protocol }}://{{ kolla_internal_vip_address }}:{{ elasticsearch_port }}/_security/user/{{es_exporter_username}}"
+    method: POST
+    body_format: json
+    body: |
+       {
+         "password": "{{es_exporter_password}}",
+         "roles": [ "{{es_exporter_username}}_role" ],
+         "full_name" : "ES Exporter User"
+         }
+       }
+    user: "{{ es_api_basic_auth_username }}"
+    password: "{{ es_api_basic_auth_password }}"
+    force_basic_auth: yes
+  run_once: true
+  when:
+    - es_exporter_username is defined and es_exporter_password is defined

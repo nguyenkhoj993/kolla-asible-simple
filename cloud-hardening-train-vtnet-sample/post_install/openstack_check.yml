@@ -1,0 +1,10 @@
+---
+- hosts: controller, compute, network, mon
+  gather_facts: false
+  tasks:
+  - name: Show container state
+    shell: docker ps
+    register: containers
+
+  - debug:
+      msg: "{{ containers }}"

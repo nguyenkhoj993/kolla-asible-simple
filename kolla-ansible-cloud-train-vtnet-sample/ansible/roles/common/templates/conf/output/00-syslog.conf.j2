@@ -1,0 +1,58 @@
+<match parsed_syslog_ssh>
+    @type copy
+    <store>
+        type elasticsearch
+        host {{ elasticsearch_address }}
+        port {{ elasticsearch_port }}
+        logstash_format true
+        logstash_prefix ssh
+        include_tag_key true
+        tag_key tag
+{% if es_enable_xpack | bool and es_fluentd_username is defined and es_fluentd_password is defined %}
+        user {{ es_fluentd_username }}
+        password {{ es_fluentd_password }}
+        reload_connections false
+        reload_on_failure false
+{% endif %}
+        flush_interval {{ fluentd_flush_interval }}
+    </store>
+</match>
+
+<match parsed_syslog_sudo>
+    @type copy
+    <store>
+        type elasticsearch
+        host {{ elasticsearch_address }}
+        port {{ elasticsearch_port }}
+        logstash_format true
+        logstash_prefix sudo
+        include_tag_key true
+        tag_key tag
+{% if es_enable_xpack | bool and es_fluentd_username is defined and es_fluentd_password is defined %}
+        user {{ es_fluentd_username }}
+        password {{ es_fluentd_password }}
+        reload_connections false
+        reload_on_failure false
+{% endif %}
+        flush_interval {{ fluentd_flush_interval }}
+    </store>
+</match>
+
+<match parsed_syslog_bash_history>
+    @type copy
+    <store>
+        type elasticsearch
+        host {{ elasticsearch_address }}
+        port {{ elasticsearch_port }}
+        logstash_format true
+        logstash_prefix history
+        tag_key tag
+{% if es_enable_xpack | bool and es_fluentd_username is defined and es_fluentd_password is defined %}
+        user {{ es_fluentd_username }}
+        password {{ es_fluentd_password }}
+        reload_connections false
+        reload_on_failure false
+{% endif %}
+        flush_interval {{ fluentd_flush_interval }}
+    </store>
+</match>

@@ -1,0 +1,7 @@
+devices {
+        global_filter = [ "a|/dev/disk/by-id/{{ scsi_root.stdout }}*|", "r|^/dev/mapper/*|" ]
+}
+
+local {
+
+}

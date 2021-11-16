@@ -1,0 +1,46 @@
+---
+- name: Disable selinux
+  selinux: state=disabled
+
+- name: Create pip config directory
+  file:
+    path: "/root/.config/pip/"
+    state: directory
+
+- name: Configure PYPI repo
+  copy: src=pip.conf dest=/root/.config/pip/pip.conf
+
+- name: Clean all yum.repos
+  file:
+    path: "/etc/yum.repos.d/"
+    state: absent
+
+- name: Create yum.repos directory
+  file:
+    path: "/etc/yum.repos.d/"
+    state: directory
+
+- name: Configure local repo
+  copy: src=local.repo dest=/etc/yum.repos.d/local.repo
+
+- name: Config docker repo
+  copy: src=docker.repo dest=/etc/yum.repos.d/docker.repo
+
+- name: upgrade all packages
+  yum: name=* state=latest
+
+- name: Re-clean all yum.repos
+  file:
+    path: "/etc/yum.repos.d/"
+    state: absent
+
+- name: Re-create yum.repos directory
+  file:
+    path: "/etc/yum.repos.d/"
+    state: directory
+
+- name: Re-configure local repo
+  copy: src=local.repo dest=/etc/yum.repos.d/local.repo
+
+- name: Re-configure docker repo
+  copy: src=docker.repo dest=/etc/yum.repos.d/docker.repo

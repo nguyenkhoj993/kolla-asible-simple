@@ -1,0 +1,4 @@
+{% if nova_novncproxy_pem.stat.islnk is defined %}
+ssl_only=true
+cert=/etc/nova/nova-novncproxy.pem
+{% endif %}

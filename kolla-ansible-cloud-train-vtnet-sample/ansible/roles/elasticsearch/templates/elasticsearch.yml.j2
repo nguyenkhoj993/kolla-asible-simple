@@ -1,0 +1,38 @@
+{% set num_nodes = groups['elasticsearch'] | length %}
+{% set minimum_master_nodes = (num_nodes / 2 + 1) | round(0, 'floor') | int if num_nodes > 2 else 1 %}
+{% set recover_after_nodes = (num_nodes * 2 / 3) | round(0, 'floor') | int if num_nodes > 1 else 1 %}
+node.name: "{{ api_interface_address }}"
+network.host: "{{ hostvars[inventory_hostname]['ansible_' + api_interface]['ipv4']['address'] }}"
+
+cluster.name: "{{ elasticsearch_cluster_name }}"
+{% if inventory_hostname in groups['elasticsearch'] %}
+node.master: true
+{% else %}
+node.master: false
+{% endif %}
+{% if inventory_hostname in groups['elasticsearch'] %}
+node.data: true
+{% else %}
+node.data: false
+{% endif %}
+discovery.zen.ping.unicast.hosts: [{% for host in groups['elasticsearch'] %}"{{ hostvars[host]['ansible_' + hostvars[host]['api_interface']]['ipv4']['address'] }}"{% if not loop.last %},{% endif %}{% endfor %}]
+
+discovery.zen.minimum_master_nodes: {{ minimum_master_nodes }}
+http.port: {{ elasticsearch_port }}
+gateway.expected_nodes: {{ num_nodes }}
+gateway.recover_after_time: "5m"
+gateway.recover_after_nodes: {{ recover_after_nodes }}
+path.data: "/var/lib/elasticsearch/data"
+path.logs: "/var/log/kolla/elasticsearch"
+indices.fielddata.cache.size: 40%
+action.auto_create_index: "true"
+bootstrap.memory_lock: "{% if elasticsearch_bootstrap_memory_lock | bool %}true{% else %}false{% endif %}"
+
+# Elastic Security
+{% if es_enable_xpack | bool and es_api_basic_auth_username is defined and es_api_basic_auth_password is defined %}
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.keystore.path: {{ es_cert_name }}.p12
+xpack.security.transport.ssl.truststore.path: {{ es_cert_name }}.p12
+{% endif %}

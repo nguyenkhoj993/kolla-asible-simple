@@ -1,0 +1,59 @@
+---
+- name: Copy tunning for Ceph node only
+  copy:
+    src: ceph-tuning.conf
+    dest: /etc/sysctl.d/ceph-tuning.conf
+
+- name: Apply new changes /etc/sysctl.d/ceph-tuning.conf
+  shell: /sbin/sysctl --load=/etc/sysctl.d/ceph-tuning.conf
+
+- name: Copy ceph udev rules to workaround with permission changes on devices after reboot
+  copy:
+    src: 95-ceph-osd.rules
+    dest: /etc/udev/rules.d/95-ceph-osd.rules
+
+- name: Create Ceph user for deployment
+  user:
+    name: "cephuser"
+    shell: /bin/bash
+
+- name: Set password for Ceph user
+  shell: echo "{{ cephuser_pass }}" | passwd --stdin "cephuser"
+
+- name: Create same cluser directory for all Ceph nodes
+  file:
+    path: "/home/cephuser/cluster"
+    owner: "cephuser"
+    group: "cephuser"
+    state: directory
+
+- name: Copy file PGP public key for Ceph repository
+  copy:
+    src: "release.asc"
+    dest: "/home/cephuser/cluster/release.asc"
+    owner: "cephuser"
+    group: "cephuser"
+
+- name: Copy chronyd configuration
+  copy:
+    src: chrony.conf
+    dest: /etc/chrony.conf
+
+- name: Restart chronyd service
+  service:
+    name: chronyd
+    enabled: yes
+    state: restarted
+
+- name: Allow sudo without password for Ceph user
+  shell: echo "cephuser ALL = (root) NOPASSWD:ALL" > /etc/sudoers.d/cephuser
+
+- name: Allow SSH to cephuser
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    line: "AllowUsers cephuser"
+
+- name: Restart SSH
+  systemd:
+    service: sshd
+    state: restarted
