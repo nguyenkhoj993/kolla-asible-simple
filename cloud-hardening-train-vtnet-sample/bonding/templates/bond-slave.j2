@@ -1,0 +1,12 @@
+TYPE=Ethernet
+BOOTPROTO=none
+NAME={{ item.1 }}
+DEVICE={{ item.1 }}
+ONBOOT=yes
+SLAVE=yes
+MASTER={{ item.0.item }}
+NM_CONTROLLED=no
+USERCTL=no
+PROXY_METHOD=none
+BROWSER_ONLY=no
+ETHTOOL_OPTS="-G ${DEVICE} tx 2048 rx 2048"

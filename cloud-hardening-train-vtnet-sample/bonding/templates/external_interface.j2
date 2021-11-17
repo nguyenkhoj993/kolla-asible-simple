@@ -1,0 +1,9 @@
+DEVICE={{ external_interface }}
+NAME={{ external_interface }}
+BOOTPROTO=none
+ONPARENT=yes
+VLAN=yes
+NM_CONTROLLED=no
+IPADDR={{ inventory_hostname }}
+PREFIX=24
+GATEWAY={{ ansible_default_ipv4.gateway }}

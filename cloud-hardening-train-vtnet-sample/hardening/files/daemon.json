@@ -1,0 +1,11 @@
+{
+        "live-restore": true,
+        "insecure-registries": ["nexus.5f.cloud:8890", "nexus.5f.cloud:8891","nexus.cloud:8890","nexus.cloud:8891","10.60.129.132:8890","10.60.129.132:8891"],
+        "log-driver": "json-file",
+        "log-opts": {
+            "max-size": "50m",
+            "max-file": "7",
+            "compress": "true"
+        }
+}
+

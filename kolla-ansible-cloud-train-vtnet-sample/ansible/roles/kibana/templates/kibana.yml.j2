@@ -1,0 +1,24 @@
+kibana.defaultAppId: "{{ kibana_default_app_id }}"
+logging.dest: /var/log/kolla/kibana/kibana.log
+server.port: {{ kibana_server_port }}
+server.host: "{{ api_interface_address }}"
+elasticsearch.url: "{{ internal_protocol }}://{{ kolla_internal_vip_address | put_address_in_context('url') }}:{{ elasticsearch_port }}"
+elasticsearch.requestTimeout: {{ kibana_elasticsearch_request_timeout }}
+elasticsearch.shardTimeout: {{ kibana_elasticsearch_shard_timeout }}
+elasticsearch.ssl.verificationMode: "{{ 'full' if kibana_elasticsearch_ssl_verify | bool else 'none' }}"
+# For Elasticsearch clusters taht are running in containers, this setting changes the Node Listing
+# to display the CPU utilization based on the reported Cgroup statistics.
+# Tested with Kibana 6.4
+xpack.monitoring.ui.container.elasticsearch.enabled: true
+
+# Elastic Security - Required by ES 6.8 stack
+{% if es_enable_xpack | bool and es_api_basic_auth_username is defined and es_api_basic_auth_password is defined %}
+xpack.security.encryptionKey: "{{ kibana_encryption_key }}"
+elasticsearch.username: "{{ es_api_basic_auth_username }}"
+elasticsearch.password: "{{ es_api_basic_auth_password }}"
+xpack.security.sessionTimeout: "{{ kibana_session_timeout }}"
+{% endif %}
+
+xpack.maps.enabled: false
+region_map.enabled: false
+tile_map.enabled: false

@@ -1,0 +1,38 @@
+#jinja2: lstrip_blocks: True
+{%- set haproxy = service.haproxy|default({}) %}
+{%- for haproxy_name, haproxy_service in haproxy.items() %}
+{% set external = haproxy_service.external|default(false)|bool %}
+{% if haproxy_service.enabled|bool and (not external or haproxy_enable_external_vip|bool)%}
+{% if external|bool %}
+listen {{ haproxy_name }}
+    mode http
+    maxconn 5000
+    http-request del-header X-Forwarded-Proto
+    balance source
+    option httplog
+    option forwardfor
+    bind 10.254.203.1:80
+    bind 10.254.203.1:443 ssl crt /etc/haproxy/haproxy.pem
+    http-request set-header X-Forwarded-Proto https if { ssl_fc }
+    http-request redirect scheme https unless { ssl_fc }
+    server hht3f-vtn02-ctl-10254203002 10.8.0.2:80 check inter 2000 rise 2 fall 5
+    server hht3f-vtn02-ctl-10254203003 10.8.0.3:80 check inter 2000 rise 2 fall 5
+    server hht3f-vtn02-ctl-10254203004 10.8.0.4:80 check inter 2000 rise 2 fall 5
+
+{% else %}
+listen {{ haproxy_name }}
+    mode http
+    maxconn 5000
+    http-request del-header X-Forwarded-Proto
+    balance source
+    option httplog
+    option forwardfor
+    http-request set-header X-Forwarded-Proto https if { ssl_fc }
+    bind 10.8.0.1:80
+    server hht3f-vtn02-ctl-10254203002 10.8.0.2:80 check inter 2000 rise 2 fall 5
+    server hht3f-vtn02-ctl-10254203003 10.8.0.3:80 check inter 2000 rise 2 fall 5
+    server hht3f-vtn02-ctl-10254203004 10.8.0.4:80 check inter 2000 rise 2 fall 5
+
+{% endif %}
+{% endif %}
+{%- endfor -%}

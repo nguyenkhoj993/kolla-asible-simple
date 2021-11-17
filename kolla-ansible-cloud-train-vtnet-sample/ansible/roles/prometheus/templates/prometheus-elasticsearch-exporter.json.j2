@@ -1,0 +1,15 @@
+{
+{% if es_enable_xpack | bool and es_exporter_username is defined and es_exporter_password is defined %}
+    "command": "/opt/elasticsearch_exporter/elasticsearch_exporter --web.listen-address {{ external_interface_address }}:{{ prometheus_elasticsearch_exporter_port }} --es.uri http://{{ es_exporter_username }}:{{ es_exporter_password }}@{{ api_interface_address }}:{{ elasticsearch_port }} --es.indices",
+{% else %}
+    "command": "/opt/elasticsearch_exporter/elasticsearch_exporter --web.listen-address {{ external_interface_address }}:{{ prometheus_elasticsearch_exporter_port }} --es.uri http://{{ api_interface_address }}:{{ elasticsearch_port }} --es.indices",
+{% endif %}
+    "config_files": [],
+    "permissions": [
+        {
+            "path": "/var/log/kolla/prometheus",
+            "owner": "prometheus:kolla",
+            "recurse": true
+        }
+    ]
+}

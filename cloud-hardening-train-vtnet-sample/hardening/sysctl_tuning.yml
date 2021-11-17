@@ -1,0 +1,16 @@
+---
+- name: Backup old configs
+  shell: /sbin/sysctl -a > /root/backup_sysctl.conf
+- copy:
+    src: sysctl.conf
+    dest: /etc/sysctl.conf
+- copy:
+    src: 88-tuning.conf
+    dest: /etc/sysctl.d/88-tuning.conf
+- copy:
+    src: limits.conf
+    dest: /etc/security/limits.conf
+- name: Apply new changes /etc/sysctl.conf
+  shell: /sbin/sysctl --load=/etc/sysctl.conf
+- name: Apply new changes /etc/sysctl.d/88-tuning.conf
+  shell: /sbin/sysctl --load=/etc/sysctl.d/88-tuning.conf

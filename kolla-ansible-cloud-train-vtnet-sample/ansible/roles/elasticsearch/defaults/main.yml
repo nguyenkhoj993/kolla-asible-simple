@@ -1,0 +1,48 @@
+---
+project_name: "elasticsearch"
+
+elasticsearch_services:
+  elasticsearch:
+    container_name: elasticsearch
+    group: elasticsearch
+    enabled: true
+    image: "{{ elasticsearch_image_full }}"
+    environment:
+      ES_JAVA_OPTS: "{{ es_java_opts }}"
+      KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
+    volumes:
+      - "{{ node_config_directory }}/elasticsearch/:{{ container_config_directory }}/"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "{{ elasticsearch_datadir_volume }}:/var/lib/elasticsearch/data"
+      - "elasticsearch_conf:/etc/elasticsearch/"
+    dimensions: "{{ elasticsearch_dimensions }}"
+    haproxy:
+      elasticsearch:
+        enabled: "{{ enable_elasticsearch }}"
+        mode: "http"
+        external: false
+        port: "{{ elasticsearch_port }}"
+        frontend_http_extra:
+          - "option dontlog-normal"
+
+
+####################
+# Elasticsearch
+####################
+elasticsearch_cluster_name: "kolla_logging"
+es_heap_size: "1g"
+es_java_opts: "{% if es_heap_size %}-Xms{{ es_heap_size }} -Xmx{{ es_heap_size }}{%endif%}"
+
+####################
+# Docker
+####################
+elasticsearch_image: "{{ docker_registry ~ '/' if docker_registry else '' }}{{ docker_namespace }}/{{ kolla_base_distro }}-{{ kolla_install_type }}-elasticsearch"
+elasticsearch_tag: "{{ openstack_release }}"
+elasticsearch_image_full: "{{ elasticsearch_image }}:{{ elasticsearch_tag }}"
+
+elasticsearch_dimensions:
+  mem_limit: "{{ elasticsearch_memory_limit }}"
+  memswap_limit: "{% if elasticsearch_bootstrap_memory_lock | bool %}{{ elasticsearch_memory_limit }}{% else %}{{ elasticsearch_memory_swap_limit }}{% endif %}"
+  ulimits: "{% if elasticsearch_bootstrap_memory_lock | bool %}{ 'memlock' : { 'soft' : -1, 'hard' : -1 }}{% endif %}"
+
+elasticsearch_conf_mount_dir: "/var/lib/docker/volumes/elasticsearch_conf/_data"

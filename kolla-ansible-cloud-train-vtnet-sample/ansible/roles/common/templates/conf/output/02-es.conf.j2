@@ -1,0 +1,24 @@
+# Drop unwanted logs
+<match fluent_warn_drop>
+    @type null
+</match>
+
+<match *.**>
+    @type copy
+    <store>
+       @type elasticsearch
+       host {{ elasticsearch_address }}
+       port {{ elasticsearch_port }}
+{% if es_enable_xpack | bool and es_fluentd_username is defined and es_fluentd_password is defined %}
+       user {{ es_fluentd_username }}
+       password {{ es_fluentd_password }}
+       reload_connections false
+       reload_on_failure false
+{% endif %}
+       logstash_format true
+       logstash_prefix {{ kibana_log_prefix }}
+       flush_interval {{ fluentd_flush_interval }}
+       include_tag_key true
+       tag_key tag
+    </store>
+</match>

@@ -1,0 +1,14 @@
+---
+- include_tasks: config.yml
+
+- name: Flush handlers
+  meta: flush_handlers
+
+- include_tasks: post_config.yml
+  when: es_enable_xpack | bool
+
+- include_tasks: ilm.yml
+  when: es_use_ilm | bool
+
+- name: Flush handlers
+  meta: flush_handlers

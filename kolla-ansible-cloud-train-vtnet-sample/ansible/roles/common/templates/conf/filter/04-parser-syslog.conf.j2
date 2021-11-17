@@ -1,0 +1,35 @@
+<match syslog_sudo>
+    @type parser
+    key_name message
+    format /^\s*(?<user>[^ ]+) : TTY=(?<tty>[^ ]+) ; PWD=(?<pwd>[^ ]+) ; USER=(?<sudoer>[^ ]+) ; COMMAND=(?<command>.*)$/
+    tag parsed_syslog_sudo
+</match>
+
+<match syslog_ssh_connect>
+    @type parser
+    key_name message
+    format /^(?<pid>[0-9]+)\|(?<action>[^\|]+)\|Accepted (?<auth_type>[^ ]+) for (?<user>[^ ]+) from (?<client_ip>[^ ]+) port (?<client_port>\d{1,5}) .*?$/
+    tag parsed_syslog_ssh
+</match>
+
+<match syslog_ssh_disconnect>
+    @type parser
+    key_name message
+    format /^(?<pid>[0-9]+)\|(?<action>[^\|]+)\|Received disconnect from (?<client_ip>[^ ]+) port (?<client_port>\d{1,5}).*?$/
+    tag parsed_syslog_ssh
+</match>
+
+<match syslog.local6.*>
+    @type parser
+    key_name message
+    format /^\[cmdlog\] (?<username>[a-zA-Z0-9_\/\.\-]*) \[(?<pid>[0-9]+)\]: (?<command>.*)$/
+    tag parsed_syslog_bash_history
+</match>
+
+<match syslog.local1.*>
+    @type parser
+    key_name message
+    format /^(?<c_port>\d+) \[(?<time_in_log>.+)\] (?<f_end>[\w\~-]+) (?<b_end>[\w-]+)\/(?<b_end_server>[\w\.-]+) (?<tq>\d+)\/(?<tw>[-\d]+)\/(?<tc>[-\d]+)\/(?<tr>[-\d]+)\/(?<tt>[-\d]+) (?<status_code>\d+) (?<bytes>\d+) (?<req_cookie>\S?) (?<res_cookie>\S?) (?<t_state>[\w-]+) (?<actconn>\d+)\/(?<f_end_conn>\d+)\/(?<b_end_conn>\d+)\/(?<srv_conn>\d+)\/(?<retries>\d+) (?<srv_queue>\d+)\/(?<b_end_queue>\d+) \{?(?<req_headers>[^}]*)\}? ?\{?(?<res_headers>[^}]*)\}? ?"(?<request>[^"]*)"|(?<message>.*)$/
+    reserve_data true
+    tag parsed_syslog_haproxy
+</match>
