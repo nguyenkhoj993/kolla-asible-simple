@@ -1,9 +1,0 @@
----
-- name: "Configure haproxy for {{ project_name }}"
-  import_role:
-    role: haproxy-config
-  vars:
-    project_services: "{{ cinder_services }}"
-    service_timeout_server: "{{ haproxy_timeout_server_cinder_api }}"
-    service_timeout_client: "{{ haproxy_timeout_client_cinder_api }}"
-  tags: always

@@ -1,7 +1,0 @@
-<source>
-  @type tail
-  path /var/log/dmesg
-  pos_file /var/run/{{ fluentd_binary }}/dmesg.pos
-  tag dmesg
-  format /^\[(?<Timestamp>\S+ \S+ +\S+ \S+:\S+:\S+ \S+)\] (?<device>.*):(?<message>.*)$/
-</source>
