@@ -1,8 +1,0 @@
-DEVICE={{ item }}
-NAME={{ item }}
-BOOTPROTO=none
-ONPARENT=yes
-VLAN=yes
-NM_CONTROLLED=no
-IPADDR={{ ansible_facts[item].ipv4.address }}
-PREFIX=24
