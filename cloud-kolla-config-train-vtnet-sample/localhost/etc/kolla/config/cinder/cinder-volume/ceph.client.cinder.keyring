@@ -1,4 +1,0 @@
-[client.cinder]
-	key = AQCrjKtgAAAAABAAl6NDh3iPV7U9clk+C0s9rQ==
-	caps mon = "profile rbd"
-	caps osd = "profile rbd pool=volumes_hdd, profile rbd pool=volumes_ssd, profile rbd pool=volumes_nvme, profile rbd pool=vms"

@@ -1,9 +1,0 @@
-process_names:
-  - name: "{{.Comm}}@{{.Matches.UUID}}"
-    comm:
-    - ceph-osd
-    - ceph-mon
-    - ceph-mgr
-    cmdline:
-    - 'id\s+(?P<UUID>\S+)'
-
